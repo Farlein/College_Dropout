@@ -1,2 +1,2 @@
 # College_Dropout
-Final code for college dropout prediction
+Final codes for college dropout prediction
