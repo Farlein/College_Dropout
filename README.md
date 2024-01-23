@@ -1,2 +1,2 @@
-# College_Dropout
-Final codes for college dropout prediction
+# College Dropout
+This is a repository to store final codes for college dropout prediction
