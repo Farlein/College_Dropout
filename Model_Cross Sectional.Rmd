@@ -1,0 +1,520 @@
+---
+title: "ADM_RF_20231117"
+output: html_document
+date: "2023-11-17"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r use package}
+library("tidyverse")
+library("gbm")
+library("caret")
+library("glmnet")
+library("rpart")
+library("randomForest")
+
+```
+
+
+```{r data}
+
+raw = read.csv("Ret_Surv_w_fold.csv")
+
+num_models = 30
+
+code_path = "G:/My Drive/FSAN/9_Ret and Grad/Code_R/"
+
+test_term = 2223
+
+```
+
+```{r Model_Tree}
+
+sum(as.numeric(data_train$Outcome_23_Ind_char))
+max(as.numeric(data_train$Outcome_23_Ind_char))
+length(data_train$Outcome_23_Ind_char)
+sum(as.numeric(data_train$Outcome_23_Ind_char))/length(data_train$Outcome_23_Ind_char)
+  
+# Fit the model to the training data
+model_tree_raw <- rpart(as.factor(Outcome_23_Ind_char) ~ ., data=data_train)
+model_tree <- prune(model_tree_raw, cp = 0.1)
+summary(model_tree)
+path.rpart(model_tree_raw)
+
+plot(model_tree_raw)
+
+Pred_Tree_train = predict(model_tree_raw,data_train, type = "prob")
+summary(Pred_Tree_train)
+Outcome_train = if_else(Pred_Tree_train[,2]>=0.15, 1,0)
+min(Outcome_train)
+max(Outcome_train)
+data_train = data_train %>% 
+  mutate(Outcome_Pred = Outcome_train)
+table(data_train$Outcome_23_Ind, data_train$Outcome_Pred)
+
+
+```
+
+
+
+```{r Model_RF}
+
+for (test_term in seq(2223, 2203, -10)) {
+  data_train <- raw %>% 
+    filter((academic_term < test_term) & (Term_Seq <=6) & (fold != 10)) %>% 
+    mutate(Outcome_23_Ind = Outcome_2_Ind + Outcome_3_Ind) %>% 
+    mutate(Outcome_23_Ind_char = as.factor(Outcome_23_Ind)) %>% 
+    select(Outcome_23_Ind_char, Term_Seq,  FT_Ind,  US_Ind,  D_Major_Ind,  cum_gpa,  DFW_Count_last,  Listen_Count_last,  Acad_stndng_Last,  Tot_Credit_Rate,  cur_regis_rate,  Tot_Credit_MinorTerm_Rate,  TOT_TRNSFR_rate,  TOT_TEST_CREDIT_rate,  hs_gpa,  fed_efc_rate,  total_grant_rate,  parent_loan_rate,  student_loan_rate,  work_study_rate,  Balance_Rate,  Pell_Ind,  Fst_Gen_Ind,  Gender_Ind,  Resid_Ind,  age,  Eth_ASIAN_Ind,  Eth_BLACK_Ind,  Eth_HISPA_Ind,  Eth_WHITE_Ind)
+  
+  data_test <- raw %>% 
+    filter((academic_term == test_term) & (Term_Seq <=6)) %>% 
+    mutate(Outcome_23_Ind = Outcome_2_Ind + Outcome_3_Ind) %>% 
+    mutate(Outcome_23_Ind_char = as.factor(Outcome_23_Ind)) %>%   
+    select(Outcome_23_Ind_char, Term_Seq,  FT_Ind,  US_Ind,  D_Major_Ind,  cum_gpa,  DFW_Count_last,  Listen_Count_last,  Acad_stndng_Last,  Tot_Credit_Rate,  cur_regis_rate,  Tot_Credit_MinorTerm_Rate,  TOT_TRNSFR_rate,  TOT_TEST_CREDIT_rate,  hs_gpa,  fed_efc_rate,  total_grant_rate,  parent_loan_rate,  student_loan_rate,  work_study_rate,  Balance_Rate,  Pell_Ind,  Fst_Gen_Ind,  Gender_Ind,  Resid_Ind,  age,  Eth_ASIAN_Ind,  Eth_BLACK_Ind,  Eth_HISPA_Ind,  Eth_WHITE_Ind)
+  
+  print(test_term)
+  
+  for (i in 1:num_models) {
+      print(i)
+    
+      model_RF = randomForest(Outcome_23_Ind_char ~ . , data=data_train, importance=T)
+      
+      model_name=paste("RF",toString(test_term),toString(i),sep="_")
+      model_path = paste(code_path, model_name,".rda", sep="")
+      saveRDS(model_RF, file = model_path)
+  }
+  
+  
+}
+
+
+######################################
+
+data_train <- raw %>% 
+    filter((academic_term < test_term) & (Term_Seq <=6) & (fold != 10)) %>% 
+    mutate(Outcome_23_Ind = Outcome_2_Ind + Outcome_3_Ind) %>% 
+    mutate(Outcome_23_Ind_char = as.factor(Outcome_23_Ind)) %>% 
+    select(Outcome_23_Ind_char, Term_Seq,  FT_Ind,  US_Ind,  D_Major_Ind,  cum_gpa,  DFW_Count_last,  Listen_Count_last,  Acad_stndng_Last,  Tot_Credit_Rate,  cur_regis_rate,  Tot_Credit_MinorTerm_Rate,  TOT_TRNSFR_rate,  TOT_TEST_CREDIT_rate,  hs_gpa,  fed_efc_rate,  total_grant_rate,  parent_loan_rate,  student_loan_rate,  work_study_rate,  Balance_Rate,  Pell_Ind,  Fst_Gen_Ind,  Gender_Ind,  Resid_Ind,  age,  Eth_ASIAN_Ind,  Eth_BLACK_Ind,  Eth_HISPA_Ind,  Eth_WHITE_Ind)
+
+x.train = data_train[,-1]
+y.train = data_train$Outcome_23_Ind_char
+
+data_test <- raw %>% 
+    filter((academic_term == test_term) & (Term_Seq <=6)) %>% 
+    mutate(Outcome_23_Ind = Outcome_2_Ind + Outcome_3_Ind) %>% 
+    mutate(Outcome_23_Ind_char = as.factor(Outcome_23_Ind)) %>%   
+    select(Outcome_23_Ind_char, Term_Seq,  FT_Ind,  US_Ind,  D_Major_Ind,  cum_gpa,  DFW_Count_last,  Listen_Count_last,  Acad_stndng_Last,  Tot_Credit_Rate,  cur_regis_rate,  Tot_Credit_MinorTerm_Rate,  TOT_TRNSFR_rate,  TOT_TEST_CREDIT_rate,  hs_gpa,  fed_efc_rate,  total_grant_rate,  parent_loan_rate,  student_loan_rate,  work_study_rate,  Balance_Rate,  Pell_Ind,  Fst_Gen_Ind,  Gender_Ind,  Resid_Ind,  age,  Eth_ASIAN_Ind,  Eth_BLACK_Ind,  Eth_HISPA_Ind,  Eth_WHITE_Ind)
+
+x.test = data_test[,-1]
+y.test = data_test$Outcome_23_Ind_char
+y_test_order = c(y.test[data_test$Term_Seq == 2], y.test[data_test$Term_Seq == 4], y.test[data_test$Term_Seq == 6])
+
+thres_slcts = c()
+test_F_scores = c()
+y_test_matrix = c()
+
+for (k in 1:num_models) {
+  print(k)
+  
+  model_name=paste("RF",toString(test_term),toString(k),sep="_")
+  model_path = paste(code_path, model_name,".rda", sep="")
+  model <- readRDS(model_path)
+  
+  
+  out = predict(model,data_train, type = "prob")
+  #dim(out)
+  P_out = 1 - exp(-out *1)
+  #dim(P_out)
+  θ_raw = P_out[,2]
+  #length(θ_raw)
+
+  thres_list = seq(0.15, 0.50, 0.01)
+  #thres_list = 0.15
+  thres_slct = c()
+  
+  for (j in 1:6) {
+
+    θ_pred = θ_raw[data_train$Term_Seq == j]
+
+    F_scores = c()
+    for (i in 1:length(thres_list)) {
+      y_pred = θ_pred >= thres_list[i]
+      #y_pred = θ_pred >= thres_list[36]
+      #print(max(y_pred))
+
+      if (max(y_pred) == 0) {
+        append(F_scores, NA)
+        next
+      }
+      
+#      if (min(y_pred) == 0) {
+#        append(F_scores, NA)
+#        next
+#      }
+      
+      fit_conf_mtx = table(y.train[data_train$Term_Seq == j], y_pred)
+      fit_precise = fit_conf_mtx[4]/(fit_conf_mtx[4]+fit_conf_mtx[3])
+      fit_recall = fit_conf_mtx[4]/(fit_conf_mtx[4]+fit_conf_mtx[2])
+      fit_F_score = 2*fit_precise*fit_recall/(fit_precise+fit_recall)
+      
+      F_scores = append(F_scores, fit_F_score)
+      #print(F_scores)
+
+    }
+
+    thres_slct = append(thres_slct, thres_list[which.max(F_scores)])  
+    
+  }
+
+  thres_slcts = cbind(thres_slcts, thres_slct)  
+  
+  h_test_fit = predict(model,data_test, type = "prob")
+  P_test_fit = 1 - exp(-h_test_fit *1)    
+  θ_test_fit = P_test_fit[,2]
+  θ_test_order = c(θ_test_fit[data_test$Term_Seq == 2], θ_test_fit[data_test$Term_Seq == 4], θ_test_fit[data_test$Term_Seq == 6])
+  #print(max(θ_test_order))
+
+  thres_slct_list = c(rep(1,sum(data_test$Term_Seq == 2))*thres_slct[2], rep(1,sum(data_test$Term_Seq == 4))*thres_slct[4], rep(1,sum(data_test$Term_Seq == 6))*thres_slct[6])
+  y_test_pred = θ_test_order >= thres_slct_list
+  #print(max(y_test_pred))
+  y_test_matrix = cbind(y_test_matrix, y_test_pred)
+  
+  
+#  if (max(y_test_pred) == 0 ) {
+#    append(test_F_scores,0)
+#    next
+#  }
+  
+  test_conf_mtx = table(y_test_order, y_test_pred)
+#  test_precise = test_conf_mtx[4]/(test_conf_mtx[4]+test_conf_mtx[3])
+#  test_recall = test_conf_mtx[4]/(test_conf_mtx[4]+test_conf_mtx[2])
+#  test_F_score = 2*test_precise*test_recall/(test_precise+test_recall)
+  print(test_conf_mtx)
+#  test_F_scores = append(test_F_scores, test_F_score) 
+  
+}
+
+y_hat = rowMeans(as.data.frame(y_test_matrix), na.rm=T) > 0.5
+conf_mtx = table(y_test_order, y_hat)
+precise = conf_mtx[4]/(conf_mtx[4]+conf_mtx[3])
+recall = conf_mtx[4]/(conf_mtx[4]+conf_mtx[2])
+F_score = 2*precise*recall/(precise+recall)
+print(F_score)
+
+######################################
+
+
+```
+
+```{r Model_GB}
+
+for (test_term in seq(2213, 2213, -10)) {
+  data_train <- raw %>% 
+  filter(academic_term < test_term & Term_Seq <=6 & fold != 10) %>% 
+  mutate(Outcome_23_Ind = Outcome_2_Ind + Outcome_3_Ind)
+
+data_test <- raw %>% 
+  filter(academic_term == test_term & Term_Seq <=6) %>% 
+  mutate(Outcome_23_Ind = Outcome_2_Ind + Outcome_3_Ind)
+  
+  print(test_term)
+  
+  for (i in 1:num_models) {
+      print(i)
+    
+      model_GB = gbm(Outcome_23_Ind ~ Term_Seq + FT_Ind + US_Ind + D_Major_Ind + cum_gpa + DFW_Count_last + Listen_Count_last + Acad_stndng_Last + Tot_Credit_Rate + cur_regis_rate + Tot_Credit_MinorTerm_Rate + TOT_TRNSFR_rate + TOT_TEST_CREDIT_rate + hs_gpa + fed_efc_rate + total_grant_rate + parent_loan_rate + student_loan_rate + work_study_rate + Balance_Rate + Pell_Ind + Fst_Gen_Ind + Gender_Ind + Resid_Ind + age + Eth_ASIAN_Ind + Eth_BLACK_Ind + Eth_HISPA_Ind + Eth_WHITE_Ind, distribution = "bernoulli", data = data_train, n.trees = 2000, interaction.depth = 4, shrinkage = 0.01, cv.folds = 10)
+      
+      model_name=paste("GB",toString(test_term),toString(i),sep="_20240109")
+      model_path = paste(code_path, model_name,".rda", sep="")
+      saveRDS(model_GB, file = model_path)
+  }
+  
+}
+
+
+
+######################################
+
+data_train <- raw %>% 
+    filter((academic_term < test_term) & (Term_Seq <=6) & (fold != 10)) %>% 
+    mutate(Outcome_23_Ind = Outcome_2_Ind + Outcome_3_Ind) %>% 
+    mutate(Outcome_23_Ind_char = as.factor(Outcome_23_Ind)) %>% 
+    select(Outcome_23_Ind_char, Term_Seq,  FT_Ind,  US_Ind,  D_Major_Ind,  cum_gpa,  DFW_Count_last,  Listen_Count_last,  Acad_stndng_Last,  Tot_Credit_Rate,  cur_regis_rate,  Tot_Credit_MinorTerm_Rate,  TOT_TRNSFR_rate,  TOT_TEST_CREDIT_rate,  hs_gpa,  fed_efc_rate,  total_grant_rate,  parent_loan_rate,  student_loan_rate,  work_study_rate,  Balance_Rate,  Pell_Ind,  Fst_Gen_Ind,  Gender_Ind,  Resid_Ind,  age,  Eth_ASIAN_Ind,  Eth_BLACK_Ind,  Eth_HISPA_Ind,  Eth_WHITE_Ind)
+
+x.train = data_train[,-1]
+y.train = data_train$Outcome_23_Ind_char
+
+data_test <- raw %>% 
+    filter((academic_term == test_term) & (Term_Seq <=6)) %>% 
+    mutate(Outcome_23_Ind = Outcome_2_Ind + Outcome_3_Ind) %>% 
+    mutate(Outcome_23_Ind_char = as.factor(Outcome_23_Ind)) %>%   
+    select(Outcome_23_Ind_char, Term_Seq,  FT_Ind,  US_Ind,  D_Major_Ind,  cum_gpa,  DFW_Count_last,  Listen_Count_last,  Acad_stndng_Last,  Tot_Credit_Rate,  cur_regis_rate,  Tot_Credit_MinorTerm_Rate,  TOT_TRNSFR_rate,  TOT_TEST_CREDIT_rate,  hs_gpa,  fed_efc_rate,  total_grant_rate,  parent_loan_rate,  student_loan_rate,  work_study_rate,  Balance_Rate,  Pell_Ind,  Fst_Gen_Ind,  Gender_Ind,  Resid_Ind,  age,  Eth_ASIAN_Ind,  Eth_BLACK_Ind,  Eth_HISPA_Ind,  Eth_WHITE_Ind)
+
+x.test = data_test[,-1]
+y.test = data_test$Outcome_23_Ind_char
+y_test_order = c(y.test[data_test$Term_Seq == 2], y.test[data_test$Term_Seq == 4], y.test[data_test$Term_Seq == 6])
+length(y_test_order)
+
+thres_slcts = c()
+test_F_scores = c()
+y_test_matrix = c()
+
+for (k in 1:num_models) {
+  print(k)
+  
+  model_name=paste("GB",toString(test_term),toString(k),sep="_")
+  model_path = paste(code_path, model_name,".rda", sep="")
+  model <- readRDS(model_path)
+  
+  best.iter <- gbm.perf(model, method = "cv")
+  
+  
+  out = predict(model, newdata=data_train, n.trees = best.iter, type = "response")
+  #dim(out)
+  P_out = 1 - exp(-out *1)
+  #dim(P_out)
+  θ_raw = P_out
+  #length(θ_raw)
+
+  thres_list = seq(0.15, 0.50, 0.01)
+  #thres_list = 0.15
+  thres_slct = c()
+  
+  for (j in 1:6) {
+
+    θ_pred = θ_raw[data_train$Term_Seq == j]
+
+    F_scores = c()
+    for (i in 1:length(thres_list)) {
+      y_pred = θ_pred >= thres_list[i]
+      #y_pred = θ_pred >= thres_list[36]
+      #print(max(y_pred))
+
+      if (max(y_pred) == 0) {
+        append(F_scores, NA)
+        next
+      }
+      
+      if (min(y_pred) == 1) {
+        append(F_scores, NA)
+        next
+      }
+      
+      fit_conf_mtx = table(y.train[data_train$Term_Seq == j], y_pred)
+      fit_precise = fit_conf_mtx[4]/(fit_conf_mtx[4]+fit_conf_mtx[3])
+      fit_recall = fit_conf_mtx[4]/(fit_conf_mtx[4]+fit_conf_mtx[2])
+      fit_F_score = 2*fit_precise*fit_recall/(fit_precise+fit_recall)
+      
+      F_scores = append(F_scores, fit_F_score)
+      #print(F_scores)
+
+    }
+
+    thres_slct = append(thres_slct, thres_list[which.max(F_scores)])  
+    
+  }
+
+  thres_slcts = cbind(thres_slcts, thres_slct)  
+  
+  h_test_fit = predict(model, newdata=data_test, n.trees = best.iter, type = "response")
+  P_test_fit = 1 - exp(-h_test_fit *1)    
+  θ_test_fit = P_test_fit
+  θ_test_order = c(θ_test_fit[data_test$Term_Seq == 2], θ_test_fit[data_test$Term_Seq == 4], θ_test_fit[data_test$Term_Seq == 6])
+  #print(max(θ_test_order))
+
+  thres_slct_list = c(rep(1,sum(data_test$Term_Seq == 2))*thres_slct[2], rep(1,sum(data_test$Term_Seq == 4))*thres_slct[4], rep(1,sum(data_test$Term_Seq == 6))*thres_slct[6])
+  y_test_pred = θ_test_order >= thres_slct_list
+  #print(max(y_test_pred))
+  y_test_matrix = cbind(y_test_matrix, y_test_pred)
+  
+  
+#  if (max(y_test_pred) == 0 ) {
+#    append(test_F_scores,0)
+#    next
+#  }
+  
+  test_conf_mtx = table(y_test_order, y_test_pred)
+#  test_precise = test_conf_mtx[4]/(test_conf_mtx[4]+test_conf_mtx[3])
+#  test_recall = test_conf_mtx[4]/(test_conf_mtx[4]+test_conf_mtx[2])
+#  test_F_score = 2*test_precise*test_recall/(test_precise+test_recall)
+  print(test_conf_mtx)
+#  test_F_scores = append(test_F_scores, test_F_score) 
+  
+}
+
+y_hat = rowMeans(as.data.frame(y_test_matrix), na.rm=T) > 0.5
+conf_mtx = table(y_test_order, y_hat)
+precise = conf_mtx[4]/(conf_mtx[4]+conf_mtx[3])
+recall = conf_mtx[4]/(conf_mtx[4]+conf_mtx[2])
+F_score = 2*precise*recall/(precise+recall)
+print(F_score)
+
+######################################
+
+
+```
+
+
+```{r Model_Ridge}
+
+
+for (test_term in seq(2223, 2203, -10)) {
+  
+  print(test_term)
+  
+  data_train <- raw %>% 
+    filter((academic_term < test_term) & (Term_Seq <=6) & (fold != 10)) %>% 
+    mutate(Outcome_23_Ind = Outcome_2_Ind + Outcome_3_Ind) %>% 
+    mutate(Outcome_23_Ind_char = as.factor(Outcome_23_Ind)) %>% 
+    select(Outcome_23_Ind_char, Term_Seq,  FT_Ind,  US_Ind,  D_Major_Ind,  cum_gpa,  DFW_Count_last,  Listen_Count_last,  Acad_stndng_Last,  Tot_Credit_Rate,  cur_regis_rate,  Tot_Credit_MinorTerm_Rate,  TOT_TRNSFR_rate,  TOT_TEST_CREDIT_rate,  hs_gpa,  fed_efc_rate,  total_grant_rate,  parent_loan_rate,  student_loan_rate,  work_study_rate,  Balance_Rate,  Pell_Ind,  Fst_Gen_Ind,  Gender_Ind,  Resid_Ind,  age,  Eth_ASIAN_Ind,  Eth_BLACK_Ind,  Eth_HISPA_Ind,  Eth_WHITE_Ind)
+  
+  data_test <- raw %>% 
+    filter((academic_term == test_term) & (Term_Seq <=6)) %>% 
+    mutate(Outcome_23_Ind = Outcome_2_Ind + Outcome_3_Ind) %>% 
+    mutate(Outcome_23_Ind_char = as.factor(Outcome_23_Ind)) %>%   
+    select(Outcome_23_Ind_char, Term_Seq,  FT_Ind,  US_Ind,  D_Major_Ind,  cum_gpa,  DFW_Count_last,  Listen_Count_last,  Acad_stndng_Last,  Tot_Credit_Rate,  cur_regis_rate,  Tot_Credit_MinorTerm_Rate,  TOT_TRNSFR_rate,  TOT_TEST_CREDIT_rate,  hs_gpa,  fed_efc_rate,  total_grant_rate,  parent_loan_rate,  student_loan_rate,  work_study_rate,  Balance_Rate,  Pell_Ind,  Fst_Gen_Ind,  Gender_Ind,  Resid_Ind,  age,  Eth_ASIAN_Ind,  Eth_BLACK_Ind,  Eth_HISPA_Ind,  Eth_WHITE_Ind)
+  
+  x.train = data_train[,-1]
+  y.train = data_train$Outcome_23_Ind_char
+
+  x.test = data_test[,-1]
+  y.test = data_test$Outcome_23_Ind_char
+  
+  for (i in 1:num_models) {
+    print(i)
+    
+    cross_val <- cv.glmnet(as.matrix(x.train), as.factor(y.train), 
+                       family = 'binomial',
+                       alpha = 0, 
+                       nlambda = 100)
+
+    fit_1se <- glmnet(as.matrix(x.train), as.factor(y.train), 
+              family = 'binomial', 
+              alpha = 0, 
+              lambda = cross_val$lambda.1se)
+    
+    model_name=paste("Ridge",toString(test_term),toString(i),sep="_")
+    model_path = paste(code_path, model_name,".rda", sep="")
+      
+    saveRDS(fit_1se, file = model_path)
+    #model2 <- readRDS("/tmp/model_nnet2.rda")
+    
+  }
+}
+
+
+######################################
+
+data_train <- raw %>% 
+    filter((academic_term < test_term) & (Term_Seq <=6) & (fold != 10)) %>% 
+    mutate(Outcome_23_Ind = Outcome_2_Ind + Outcome_3_Ind) %>% 
+    mutate(Outcome_23_Ind_char = as.factor(Outcome_23_Ind)) %>% 
+    select(Outcome_23_Ind_char, Term_Seq,  FT_Ind,  US_Ind,  D_Major_Ind,  cum_gpa,  DFW_Count_last,  Listen_Count_last,  Acad_stndng_Last,  Tot_Credit_Rate,  cur_regis_rate,  Tot_Credit_MinorTerm_Rate,  TOT_TRNSFR_rate,  TOT_TEST_CREDIT_rate,  hs_gpa,  fed_efc_rate,  total_grant_rate,  parent_loan_rate,  student_loan_rate,  work_study_rate,  Balance_Rate,  Pell_Ind,  Fst_Gen_Ind,  Gender_Ind,  Resid_Ind,  age,  Eth_ASIAN_Ind,  Eth_BLACK_Ind,  Eth_HISPA_Ind,  Eth_WHITE_Ind)
+
+x.train = data_train[,-1]
+y.train = data_train$Outcome_23_Ind_char
+
+data_test <- raw %>% 
+    filter((academic_term == test_term) & (Term_Seq <=6)) %>% 
+    mutate(Outcome_23_Ind = Outcome_2_Ind + Outcome_3_Ind) %>% 
+    mutate(Outcome_23_Ind_char = as.factor(Outcome_23_Ind)) %>%   
+    select(Outcome_23_Ind_char, Term_Seq,  FT_Ind,  US_Ind,  D_Major_Ind,  cum_gpa,  DFW_Count_last,  Listen_Count_last,  Acad_stndng_Last,  Tot_Credit_Rate,  cur_regis_rate,  Tot_Credit_MinorTerm_Rate,  TOT_TRNSFR_rate,  TOT_TEST_CREDIT_rate,  hs_gpa,  fed_efc_rate,  total_grant_rate,  parent_loan_rate,  student_loan_rate,  work_study_rate,  Balance_Rate,  Pell_Ind,  Fst_Gen_Ind,  Gender_Ind,  Resid_Ind,  age,  Eth_ASIAN_Ind,  Eth_BLACK_Ind,  Eth_HISPA_Ind,  Eth_WHITE_Ind)
+
+x.test = data_test[,-1]
+y.test = data_test$Outcome_23_Ind_char
+y_test_order = c(y.test[data_test$Term_Seq == 2], y.test[data_test$Term_Seq == 4], y.test[data_test$Term_Seq == 6])
+
+thres_slcts = c()
+test_F_scores = c()
+y_test_matrix = c()
+
+for (k in 1:num_models) {
+  print(k)
+  
+  model_name=paste("Ridge",toString(test_term),toString(k),sep="_")
+  model_path = paste(code_path, model_name,".rda", sep="")
+  model <- readRDS(model_path)
+  
+  
+  out = predict(model, newx = as.matrix(x.train), type = 'response')
+  P_out = 1 - exp(-out *1)
+  θ_raw = as.vector(P_out)
+  #length(θ_raw)
+
+  thres_list = seq(0.15, 0.50, 0.01)
+  #thres_list = 0.15
+  thres_slct = c()
+  
+  for (j in 1:6) {
+
+    θ_pred = θ_raw[data_train$Term_Seq == j]
+
+    F_scores = c()
+    for (i in 1:length(thres_list)) {
+      y_pred = θ_pred >= thres_list[i]
+      #y_pred = θ_pred >= thres_list[36]
+      #print(max(y_pred))
+
+      if (max(y_pred) == 0) {
+        append(F_scores, NA)
+        next
+      }
+
+      fit_conf_mtx = table(y.train[data_train$Term_Seq == j], y_pred)
+      fit_precise = fit_conf_mtx[4]/(fit_conf_mtx[4]+fit_conf_mtx[3])
+      fit_recall = fit_conf_mtx[4]/(fit_conf_mtx[4]+fit_conf_mtx[2])
+      fit_F_score = 2*fit_precise*fit_recall/(fit_precise+fit_recall)
+      
+      F_scores = append(F_scores, fit_F_score)
+      #print(F_scores)
+
+    }
+
+    thres_slct = append(thres_slct, thres_list[which.max(F_scores)])  
+    
+  }
+
+  thres_slcts = cbind(thres_slcts, thres_slct)  
+  
+  h_test_fit = predict(model, newx = as.matrix(x.test), type = 'response')
+  P_test_fit = 1 - exp(-h_test_fit *1)    
+  θ_test_fit = as.vector(P_test_fit)
+  θ_test_order = c(θ_test_fit[data_test$Term_Seq == 2], θ_test_fit[data_test$Term_Seq == 4], θ_test_fit[data_test$Term_Seq == 6])
+  #print(max(θ_test_order))
+
+  thres_slct_list = c(rep(1,sum(data_test$Term_Seq == 2))*thres_slct[2], rep(1,sum(data_test$Term_Seq == 4))*thres_slct[4], rep(1,sum(data_test$Term_Seq == 6))*thres_slct[6])
+  y_test_pred = θ_test_order >= thres_slct_list
+  #print(max(y_test_pred))
+  y_test_matrix = cbind(y_test_matrix, y_test_pred)
+  
+  
+#  if (max(y_test_pred) == 0 ) {
+#    append(test_F_scores,0)
+#    next
+#  }
+  
+  test_conf_mtx = table(y_test_order, y_test_pred)
+#  test_precise = test_conf_mtx[4]/(test_conf_mtx[4]+test_conf_mtx[3])
+#  test_recall = test_conf_mtx[4]/(test_conf_mtx[4]+test_conf_mtx[2])
+#  test_F_score = 2*test_precise*test_recall/(test_precise+test_recall)
+  print(test_conf_mtx)
+#  test_F_scores = append(test_F_scores, test_F_score) 
+  
+}
+
+y_hat = rowMeans(as.data.frame(y_test_matrix), na.rm=T) > 0.5
+conf_mtx = table(y_test_order, y_hat)
+precise = conf_mtx[4]/(conf_mtx[4]+conf_mtx[3])
+recall = conf_mtx[4]/(conf_mtx[4]+conf_mtx[2])
+F_score = 2*precise*recall/(precise+recall)
+print(F_score)
+
+######################################
+
+
+``` 
+
